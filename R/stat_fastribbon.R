@@ -15,7 +15,7 @@ StatFastribbon <- ggproto(
 
     if (!"group" %in% names(dt)) dt[, group := 1L]
 
-    # Sort by x then by y to prepare for c++ code
+    # Sort by group -> x -> y to prepare for c++ code
     data.table::setkey(dt, group, x, y)
 
     res_list <- compute_ribbon_stats(
@@ -27,7 +27,15 @@ StatFastribbon <- ggproto(
 
     out <- data.table::setDT(res_list)
 
-    out[, level := factor(level, levels = unique(level))]
+    labels <- paste0(.width * 100, "%") |>
+      `names<-`(as.character(seq_len(length(.width)))) |>
+      rev()
+
+    out[, level := factor(
+      level,
+      levels = unique(level),
+      labels = labels
+    )]
 
     # Add dummy columns required by ggdist/ggplot2
     out[, `:=`(
@@ -40,11 +48,25 @@ StatFastribbon <- ggproto(
   }
 )
 
+#' Fast stat_lineribbon
+#'
+#' A re-implementation of ggdist::stat_lineribbon optimized for large numbers of trajectories
+#'
 #' @inheritParams ggdist::stat_lineribbon
+#' @param .width a vector of probabilities to use that determine the widths of the resulting intervals
+#' @param ... Other arguments passed to stat_lineribbon
+#' @importFrom ggplot2 layer
+#' @examplesIf interactive()
+#' df <- expand_grid(x = seq(0, 100, by = 0.1), y = rep(0, 1000)) |>
+#'     mutate(y = rnorm(n(), cos(x / 10) * 1, 1.5 + sin(x / 10)))
+#'
+#' ggplot(df) +
+#'    stat_fastribbon(aes(x = x, y = y))
 #' @export
-stat_fastribbon <- function(mapping = NULL, data = NULL, geom = "lineribbon",
+stat_fastribbon <- function(mapping = NULL, data = NULL, geom = ggdist::GeomLineribbon,
                             position = "identity", na.rm = FALSE, show.legend = NA,
                             inherit.aes = TRUE, .width = c(0.50, 0.80, 0.95), ...) {
+
   ggplot2::layer(
     stat = StatFastribbon, data = data, mapping = mapping, geom = geom,
     position = position, show.legend = show.legend, inherit.aes = inherit.aes,

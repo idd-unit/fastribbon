@@ -1,6 +1,6 @@
 Package: fastribbon
 Type: Package
-Title: Does line_ribbon_fast
+Title: Does line_ribbon fast
 Version: 0.1.0
 Author: Ruarai
 Maintainer: Ruarai <ruarai.t@gmail.com>
@@ -10,3 +10,4 @@ Encoding: UTF-8
 LazyData: true
 Imports: ggdist, ggplot2, data.table
 LinkingTo: Rcpp
+RoxygenNote: 7.3.2
