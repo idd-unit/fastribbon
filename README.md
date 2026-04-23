@@ -1,4 +1,5 @@
 
+
 ## fastribbon
 
 This package includes a C++ implementation of [ggdist's line-ribbon plot](https://mjskay.github.io/ggdist/articles/lineribbon.html) optimized for large numbers (thousands) of high-resolution time-series trajectories.
