@@ -204,8 +204,6 @@ StatFastribbon <- ggplot2::ggproto(
 #'     with levels ordered from widest to narrowest interval. Used for
 #'     \code{fill} by default.}
 #' }
-#' Ribbons use \code{ggplot2::after_stat(-.width)} for drawing \code{order}
-#' by default, placing wider intervals behind narrower ones.
 #' @importFrom ggplot2 layer
 #' @examples
 #' set.seed(123)
