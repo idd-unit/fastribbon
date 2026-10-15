@@ -60,10 +60,10 @@ bench::mark(
 )
 
 # A tibble: 2 × 13
-  expression      min   median `itr/sec` mem_alloc `gc/sec` n_itr  n_gc total_time result memory                   time            gc      
-  <bch:expr> <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl> <int> <dbl>   <bch:tm> <list> <list>                   <list>          <list>  
-1 custom      547.9ms  598.3ms    1.13    540.05MB     4.06    10    36      8.86s <NULL> <Rprofmem [525 × 3]>     <bench_tm [10]> <tibble>
-2 base          18.4s    20.1s    0.0492    3.39GB     1.29    10   263      3.39m <NULL> <Rprofmem [472,978 × 3]> <bench_tm [10]> <tibble>
+  expression      min   median `itr/sec` mem_alloc `gc/sec` n_itr  n_gc total_time result memory                   time            gc               
+  <bch:expr> <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl> <int> <dbl>   <bch:tm> <list> <list>                   <list>          <list>           
+1 custom      271.1ms  301.3ms    2.01    478.87MB     5.22    10    26      4.98s <NULL> <Rprofmem [502 × 3]>     <bench_tm [10]> <tibble [10 × 3]>
+2 base          10.5s    11.1s    0.0908    3.28GB     1.52    10   167      1.84m <NULL> <Rprofmem [472,356 × 3]> <bench_tm [10]> <tibble [10 × 3]>
 
 
 ```
