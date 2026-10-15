@@ -2,12 +2,12 @@
 % Please edit documentation in R/stat_fastribbon.R
 \name{stat_fastribbon}
 \alias{stat_fastribbon}
-\title{Fast stat_lineribbon}
+\title{Fast median lines with uncertainty ribbons}
 \usage{
 stat_fastribbon(
   mapping = NULL,
   data = NULL,
-  geom = "lineribbon",
+  geom = ggdist::GeomLineribbon,
   position = "identity",
   na.rm = FALSE,
   show.legend = NA,
@@ -37,38 +37,72 @@ the plot data. The return value must be a \code{data.frame}, and
 will be used as the layer data. A \code{function} can be created
 from a \code{formula} (e.g. \code{~ head(.x, 10)}).}
 
-\item{geom}{Use to override the default connection between
-\code{\link[ggdist:stat_lineribbon]{stat_lineribbon()}} and \code{\link[ggdist:geom_lineribbon]{geom_lineribbon()}}}
+\item{geom}{The geom used to display the summaries. Defaults to
+\code{ggdist::GeomLineribbon}.}
 
-\item{position}{Position adjustment, either as a string, or the result of a call to a position adjustment function.
-Setting this equal to \code{"dodge"} (\code{\link[=position_dodge]{position_dodge()}}) or \code{"dodgejust"} (\code{\link[ggdist:position_dodgejust]{position_dodgejust()}}) can be useful if
-you have overlapping geometries.}
+\item{position}{<\link[ggplot2:ggplot2-ggproto]{Position} | \link[=character]{string}> Position adjustment,
+either as a string, or the result of a call to a position adjustment function.
+Setting this equal to \code{"dodge"} (\code{\link[ggplot2:position_dodge]{position_dodge()}}) or
+\code{"dodgejust"} (\code{\link[ggdist:position_dodgejust]{position_dodgejust()}}) can be useful if you have overlapping geometries.}
 
-\item{na.rm}{If \code{FALSE}, the default, missing values are removed with a warning. If \code{TRUE}, missing
-values are silently removed.}
+\item{na.rm}{<scalar \link{logical}> If \code{FALSE}, the default, missing values are removed with a warning. If \code{TRUE},
+missing values are silently removed.}
 
-\item{show.legend}{Should this layer be included in the legends? \code{NA},
-the default, includes if any aesthetics are mapped. \code{FALSE} never includes,
-and \code{TRUE} always includes.}
+\item{show.legend}{<\link{logical}> Should this layer be included in the legends?
+\code{NA}, the default, includes if any aesthetics are mapped. \code{FALSE} never includes,
+and \code{TRUE} always includes. It can also be a named logical vector to finely select
+the aesthetics to display.}
 
 \item{inherit.aes}{If \code{FALSE}, overrides the default aesthetics,
 rather than combining with them. This is most useful for helper functions
 that define both data and aesthetics and shouldn't inherit behaviour from
-the default plot specification, e.g. \code{\link[ggplot2:borders]{borders()}}.}
+the default plot specification, e.g. \code{\link[ggplot2:annotation_borders]{borders()}}.}
 
-\item{.width}{a vector of probabilities to use that determine the widths of the resulting intervals}
+\item{.width}{A nonempty numeric vector of finite probabilities between 0 and
+1, inclusive. Duplicate widths are removed. A width of 0 gives the median;
+a width of 1 gives the full range.}
 
-\item{...}{Other arguments passed to stat_lineribbon}
+\item{...}{Additional arguments passed to \code{ggplot2::layer()} through
+its \code{params} argument, including geom parameters such as \code{alpha}
+and \code{linewidth}, and fixed aesthetics such as \code{colour}.
+\code{orientation} may be \code{NA}, \code{"x"}, or \code{"vertical"};
+ribbons are always computed vertically. \code{point_interval} is not supported.}
+}
+\value{
+A ggplot2 layer that can be added to a plot.
 }
 \description{
-A re-implementation of ggdist::stat_lineribbon optimized for large numbers of trajectories
+Calculate medians and equal-tailed intervals at each x value, optimized for
+large numbers of trajectories.
 }
-\examples{
-\dontshow{if (interactive()) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
-df <- expand_grid(x = seq(0, 100, by = 0.1), y = rep(0, 1000)) |>
-    mutate(y = rnorm(n(), cos(x / 10) * 1, 1.5 + sin(x / 10)))
+\details{
+Requires \code{x} and \code{y} aesthetics. Summaries are calculated within
+each group, after scale transformation. Only vertical ribbons of numeric sample values
+are supported; analytical distributions, weights, and alternative point or
+interval summaries are not supported. Use \code{\link[ggdist]{stat_lineribbon}} for
+those features. Use \code{ggplot2::coord_flip()} to display the result horizontally.
+}
+\section{Computed variables}{
 
-ggplot(df) +
-   stat_fastribbon(aes(x = x, y = y))
-\dontshow{\}) # examplesIf}
+These variables can be mapped with \code{ggplot2::after_stat()}:
+\describe{
+  \item{\code{x}}{The x value at which the summary is calculated.}
+  \item{\code{y}}{The median of the sample values at each x within a group.}
+  \item{\code{ymin}, \code{ymax}}{The lower and upper equal-tailed interval
+    bounds, calculated using \code{stats::quantile()}'s type 7 convention.}
+  \item{\code{.width}}{The probability covered by the interval.}
+  \item{\code{level}}{A factor of percentage labels, such as \code{"95\%"},
+    with levels ordered from widest to narrowest interval. Used for
+    \code{fill} and drawing \code{order} by default.}
+}
+}
+
+\examples{
+set.seed(123)
+draws <- expand.grid(x = seq(0, 10, length.out = 51), draw = seq_len(100))
+draws$y <- stats::rnorm(nrow(draws), mean = sin(draws$x), sd = 0.5)
+
+ggplot2::ggplot(draws, ggplot2::aes(x, y)) +
+  stat_fastribbon(.width = c(0.5, 0.8, 0.95), alpha = 0.6) +
+  ggplot2::labs(fill = "Interval probability")
 }
