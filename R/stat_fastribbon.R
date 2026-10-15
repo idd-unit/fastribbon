@@ -53,22 +53,33 @@ StatFastribbon <- ggplot2::ggproto(
       stop("`x` and `y` must be numeric after scale transformation.", call. = FALSE)
     }
 
-    # Also handle missing values when this method is called directly.
-    data <- ggplot2::remove_missing(
-      data,
-      na.rm = na.rm,
-      vars = c("x", "y"),
-      name = "stat_fastribbon",
-      finite = TRUE
+    # Only these columns are needed by the summary. In particular, do not copy
+    # and reorder every aesthetic (or every column supplied by a direct caller)
+    # for every draw. data.table() owns its columns, so sorting cannot mutate
+    # the caller's data, including when it is already a data.table.
+    data <- data.table::data.table(
+      x = data$x,
+      y = data$y,
+      group = if (is.null(data$group)) 1L else data$group
     )
+
+    # The usual ggplot path has already removed non-finite values. Check the
+    # numeric vectors directly instead of constructing a row-wise missingness
+    # matrix. Delegate removal, warnings and invalid na.rm values to ggplot2.
+    if (!all(is.finite(data$x)) || !all(is.finite(data$y)) ||
+        !is.logical(na.rm) || length(na.rm) != 1L || is.na(na.rm)) {
+      data <- ggplot2::remove_missing(
+        data,
+        na.rm = na.rm,
+        vars = c("x", "y"),
+        name = "stat_fastribbon",
+        finite = TRUE
+      )
+    }
     if (nrow(data) == 0) {
       return(data.frame())
     }
-    dt <- data.table::as.data.table(data)
-
-    if (!"group" %in% names(dt)) {
-      dt[, group := 1L]
-    }
+    dt <- data
 
     # The C++ implementation requires values sorted within each group and x.
     data.table::setkey(dt, group, x, y)

@@ -146,3 +146,31 @@ test_that("only the stat interface is exported", {
   expect_setequal(getNamespaceExports("fastribbon"),
                   c("StatFastribbon", "stat_fastribbon"))
 })
+
+test_that("summary preparation preserves inputs and ignores unrelated columns", {
+  data <- data.frame(
+    x = c(2, 1, 2, 1, 1, NA, 2),
+    y = c(40, 1, 20, 3, Inf, 5, 60),
+    group = c(2L, 1L, 2L, 1L, 1L, 1L, 2L),
+    colour = letters[1:7],
+    unused = I(as.list(1:7))
+  )
+  expected <- StatFastribbon$compute_group(
+    data[, c("x", "y", "group")], NULL, na.rm = TRUE
+  )
+  for (input in list(data, data.table::as.data.table(data))) {
+    original <- data.table::copy(input)
+    expect_equal(StatFastribbon$compute_group(input, NULL, na.rm = TRUE), expected)
+    expect_identical(input, original)
+  }
+  expect_equal(expected$x, rep(c(1, 2), each = 3))
+  expect_equal(expected$group, rep(c(1L, 2L), each = 3))
+  expect_equal(expected$y, rep(c(2, 40), each = 3))
+})
+
+test_that("the finite fast path retains na.rm argument validation", {
+  data <- data.frame(x = 1, y = 1:5)
+  for (na.rm in list(NA, NULL, 1, c(TRUE, FALSE))) {
+    expect_error(StatFastribbon$compute_group(data, NULL, na.rm = na.rm), "na.rm")
+  }
+})
