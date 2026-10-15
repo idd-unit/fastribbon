@@ -21,6 +21,55 @@ StatFastribbon <- ggplot2::ggproto(
     params
   },
 
+  compute_layer = function(self, data, params, layout) {
+    # Distribution summaries need panel-specific scales. Let ggplot2 handle
+    # those and invalid inputs through its usual path.
+    parent <- ggplot2::ggproto_parent(ggplot2::Stat, self)
+    if (!is.null(data$ydist) || !is.numeric(data$x) ||
+        !is.numeric(data$y) || !nrow(data)) {
+      return(parent$compute_layer(data, params, layout))
+    }
+    data <- ggplot2::remove_missing(
+      data, na.rm = params$na.rm, vars = c("x", "y"),
+      name = "stat_fastribbon", finite = TRUE
+    )
+    if (!nrow(data)) return(data.frame())
+
+    # Group numbers can recur across panels: give each pair a distinct ID for
+    # the C++ segment scan, then restore the original panel and group below.
+    keys <- data.table::data.table(PANEL = data$PANEL, group = data$group)
+    keys[, batch := .GRP, by = c("PANEL", "group")]
+    batch <- keys$batch
+    first <- which(!duplicated(batch))
+
+    # The parent stat restores constant aesthetics and warns about varying
+    # ones. Retain that behaviour for unusual mappings through the parent path.
+    extra <- setdiff(names(data), c("x", "y", "PANEL", "group"))
+    if (length(extra)) {
+      metadata <- data.table::as.data.table(data[, extra, drop = FALSE])
+      constant <- metadata[, lapply(.SD, function(x) {
+        data.table::uniqueN(x) == 1L
+      }), by = batch]
+      if (!all(unlist(constant[, -1L, with = FALSE], use.names = FALSE))) {
+        return(parent$compute_layer(data, params, layout))
+      }
+    }
+
+    # compute_group owns its narrow input and performs one sort for the layer.
+    # On errors, use the parent path to retain ggplot2's panel-wise warnings.
+    out <- tryCatch(self$compute_group(
+      data.frame(x = data$x, y = data$y, group = batch),
+      scales = NULL, .width = params$.width, na.rm = params$na.rm
+    ), error = function(e) NULL)
+    if (is.null(out)) return(parent$compute_layer(data, params, layout))
+    source <- data[first[out$group], , drop = FALSE]
+    out$group <- source$group
+    for (name in setdiff(names(source), names(out))) {
+      out[[name]] <- source[[name]]
+    }
+    out
+  },
+
   finish_layer = function(data, params) {
     if (nrow(data) > 0L) {
       # Keep intervals separate even when fill is fixed or mapped to a group.
