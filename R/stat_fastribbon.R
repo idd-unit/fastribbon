@@ -6,7 +6,7 @@ StatFastribbon <- ggplot2::ggproto(
   required_aes = c("x", "y"),
   default_aes = ggplot2::aes(
     fill = ggplot2::after_stat(level),
-    order = ggplot2::after_stat(level)
+    order = ggplot2::after_stat(-.width)
   ),
   extra_params = c("na.rm", "orientation", "point_interval"),
 
@@ -22,7 +22,12 @@ StatFastribbon <- ggplot2::ggproto(
   finish_layer = function(data, params) {
     if (nrow(data) > 0L) {
       # Keep intervals separate even when fill is fixed or mapped to a group.
-      data$group <- as.integer(interaction(data$group, data$.width, drop = TRUE))
+      # GeomRibbon draws in group order, so wider intervals must come first.
+      width <- factor(
+        data$.width,
+        levels = sort(unique(data$.width), decreasing = TRUE)
+      )
+      data$group <- as.integer(interaction(data$group, width, drop = TRUE))
     }
     data
   },
@@ -117,8 +122,10 @@ StatFastribbon <- ggplot2::ggproto(
 #'   \item{\code{.width}}{The probability covered by the interval.}
 #'   \item{\code{level}}{A factor of percentage labels, such as \code{"95\%"},
 #'     with levels ordered from widest to narrowest interval. Used for
-#'     \code{fill} and drawing \code{order} by default.}
+#'     \code{fill} by default.}
 #' }
+#' Ribbons use \code{ggplot2::after_stat(-.width)} for drawing \code{order}
+#' by default, placing wider intervals behind narrower ones.
 #' @importFrom ggplot2 layer
 #' @examples
 #' set.seed(123)

@@ -82,3 +82,67 @@ test_that("missing observations follow ggplot2 removal conventions", {
   ), NA)
   expect_equal(nrow(built$data[[1]]), 0L)
 })
+
+test_that("ribbons are drawn from widest to narrowest", {
+  data <- expand.grid(x = 1:3, draw = 1:20)
+  data$y <- data$draw
+
+  # Inspect polygon heights in drawing order, rather than just the stat rows.
+  polygon_heights <- function(grob) {
+    if (inherits(grob, "polygon")) {
+      return(diff(range(as.numeric(grob$y))))
+    }
+    unlist(lapply(grob$children, polygon_heights), use.names = FALSE)
+  }
+
+  for (widths in list(c(0.5, 0.8, 0.95), c(0.8, 0.95, 0.5))) {
+    for (fixed_fill in c(FALSE, TRUE)) {
+      layer <- if (fixed_fill) {
+        stat_fastribbon(.width = widths, fill = "steelblue")
+      } else {
+        stat_fastribbon(.width = widths)
+      }
+      plot <- ggplot2::ggplot(data, ggplot2::aes(x, y)) + layer
+      built <- ggplot2::ggplot_build(plot)$data[[1]]
+      expect_equal(built$order, -built$.width)
+
+      table <- ggplot2::ggplotGrob(plot)
+      panel <- table$grobs[[which(table$layout$name == "panel")]]
+      heights <- polygon_heights(panel)
+      expect_length(heights, length(widths))
+      expect_true(all(diff(heights) < 0))
+    }
+  }
+})
+
+test_that("geom_ribbon draws wide intervals behind narrow ones", {
+  data <- expand.grid(x = 1:3, draw = 1:20, category = c("a", "b"))
+  data$y <- data$draw + ifelse(data$category == "b", 30, 0)
+  polygon_heights <- function(grob) {
+    if (inherits(grob, "polygon")) {
+      return(diff(range(as.numeric(grob$y))))
+    }
+    unlist(lapply(grob$children, polygon_heights), use.names = FALSE)
+  }
+
+  for (fixed_fill in c(FALSE, TRUE)) {
+    layer <- if (fixed_fill) {
+      stat_fastribbon(geom = "ribbon", fill = "steelblue")
+    } else {
+      stat_fastribbon(geom = "ribbon")
+    }
+    plot <- ggplot2::ggplot(data, ggplot2::aes(
+      x, y, group = category, order = ggplot2::after_stat(level)
+    )) + layer + ggplot2::scale_fill_brewer() + ggplot2::theme_bw()
+    table <- ggplot2::ggplotGrob(plot)
+    panel <- table$grobs[[which(table$layout$name == "panel")]]
+    heights <- polygon_heights(panel)
+    expect_length(heights, 6L)
+    expect_equal(heights, sort(heights, decreasing = TRUE))
+  }
+})
+
+test_that("only the stat interface is exported", {
+  expect_setequal(getNamespaceExports("fastribbon"),
+                  c("StatFastribbon", "stat_fastribbon"))
+})

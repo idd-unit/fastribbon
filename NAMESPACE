@@ -1,4 +1,5 @@
-exportPattern("^[[:alpha:]]+")
+export(StatFastribbon)
+export(stat_fastribbon)
 import(data.table)
 import(ggplot2)
 import(ggdist)

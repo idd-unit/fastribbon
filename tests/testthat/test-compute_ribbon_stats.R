@@ -217,7 +217,7 @@ test_that("constant y: median == ymin == ymax for all widths", {
 # ===========================================================================
 test_that("output contains the required columns", {
   res <- run_stats(x = 1:3, y = 1:3, widths = c(0.5, 0.8))
-  expected_cols <- c("x", "group", "y", "ymin", "ymax", ".width", "level")
+  expected_cols <- c("x", "group", "y", "ymin", "ymax", ".width")
   expect_true(all(expected_cols %in% names(res)))
 })
 
@@ -225,11 +225,6 @@ test_that(".width column matches the requested widths", {
   widths <- c(0.5, 0.8, 0.95)
   res    <- run_stats(x = rep(1, 10), y = rnorm(10), widths = widths)
   expect_setequal(unique(res$.width), widths)
-})
-
-test_that("level column is a character formatted to two decimal places", {
-  res <- run_stats(x = rep(1, 5), y = 1:5, widths = c(0.5, 0.8, 0.95))
-  expect_true(all(res$level %in% c("0.50", "0.80", "0.95")))
 })
 
 test_that("x and group columns are preserved correctly", {
@@ -266,20 +261,6 @@ test_that("providing widths in any order gives the same results", {
   }
 })
 
-test_that("unsorted y input to compute_ribbon_stats produces wrong quantiles", {
-  # Without sorting, the C++ segment logic reads values in whatever order
-  # they arrive, so quantile positions are meaningless.
-  y_sorted   <- c(1, 2, 3, 4, 5)
-  y_shuffled <- c(3, 5, 1, 4, 2)
-  x <- rep(1, 5); g <- rep(1L, 5)
-
-  res_sorted   <- compute_ribbon_stats(x, y_sorted,   g, 0.8)
-  res_shuffled <- compute_ribbon_stats(x, y_shuffled, g, 0.8)
-
-  # Correct answer comes from sorted input; shuffled gives something different
-  expect_false(isTRUE(all.equal(res_sorted$ymin, res_shuffled$ymin)))
-})
-
 test_that("width = 0 collapses ymin and ymax to the median", {
   vals <- rnorm(100)
   res  <- run_stats(x = rep(1, 100), y = vals, widths = 0)
@@ -287,14 +268,32 @@ test_that("width = 0 collapses ymin and ymax to the median", {
   expect_equal(res$ymax, res$y)
 })
 
-test_that("level string matches .width value in every row", {
-  res <- run_stats(x = rep(1, 10), y = 1:10, widths = c(0.5, 0.8, 0.95))
-  expect_true(all(res$level == sprintf("%.2f", res$.width)))
+# Missing values and input sorting are handled by the R stat. The internal
+# worker is tested only with inputs satisfying that contract.
+test_that("integer quantile positions select the observation exactly", {
+  vals <- c(-1e300, -2, 0, 2, 1e300)
+  res <- run_stats(rep(1, 5), vals, widths = c(0, 0.5, 1))
+  expect_equal(res$y, rep(0, 3))
+  expect_equal(res$ymin, c(-1e300, -2, 0))
+  expect_equal(res$ymax, c(1e300, 2, 0))
 })
 
-test_that("NA in y propagates to output without na.rm", {
-  vals <- c(1, 2, NA, 4, 5)
-  res  <- run_stats(x = rep(1, 5), y = vals, widths = 0.5)
-  # NA poisons the sorted order; output quantiles should be NA
-  expect_true(is.na(res$ymin) || is.na(res$ymax))
+test_that("output handles unequal segment sizes and many widths", {
+  x <- c(1, 1, 2, 1, 1, 1, 2)
+  group <- c(1L, 1L, 1L, 2L, 2L, 2L, 2L)
+  y <- c(-5, 7, 9, -3, 2, 11, 4)
+  widths <- seq(0, 1, length.out = 101)
+  res <- run_stats(x, y, group, widths)
+
+  expect_equal(nrow(res), 4L * length(widths))
+  for (g in unique(group)) {
+    for (xx in unique(x)) {
+      rows <- res[res$group == g & res$x == xx, ]
+      values <- y[group == g & x == xx]
+      expect_equal(rows$.width, rev(widths))
+      expect_equal(rows$y, rep(q7(values, 0.5), length(widths)))
+      expect_equal(rows$ymin, q7(values, (1 - rows$.width) / 2))
+      expect_equal(rows$ymax, q7(values, (1 + rows$.width) / 2))
+    }
+  }
 })

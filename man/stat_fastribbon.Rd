@@ -93,8 +93,10 @@ These variables can be mapped with \code{ggplot2::after_stat()}:
   \item{\code{.width}}{The probability covered by the interval.}
   \item{\code{level}}{A factor of percentage labels, such as \code{"95\%"},
     with levels ordered from widest to narrowest interval. Used for
-    \code{fill} and drawing \code{order} by default.}
+    \code{fill} by default.}
 }
+Ribbons use \code{ggplot2::after_stat(-.width)} for drawing \code{order}
+by default, placing wider intervals behind narrower ones.
 }
 
 \examples{
