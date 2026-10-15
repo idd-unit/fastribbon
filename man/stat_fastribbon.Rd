@@ -76,11 +76,17 @@ Calculate medians and equal-tailed intervals at each x value, optimized for
 large numbers of trajectories.
 }
 \details{
-Requires \code{x} and \code{y} aesthetics. Summaries are calculated within
-each group, after scale transformation. Only vertical ribbons of numeric sample values
-are supported; analytical distributions, weights, and alternative point or
-interval summaries are not supported. Use \code{\link[ggdist]{stat_lineribbon}} for
-those features. Use \code{ggplot2::coord_flip()} to display the result horizontally.
+Requires \code{x} and either numeric \code{y} or a \code{ydist} aesthetic
+containing a \pkg{distributional} distribution vector. Numeric samples are
+summarized within each group and x, after scale transformation. Each
+distribution in \code{ydist} is summarized separately; if both aesthetics
+are supplied, \code{ydist} takes precedence. Univariate numeric
+\code{distributional::dist_sample()} distributions use the C++ implementation;
+other distributions use the default \code{\link[ggdist]{stat_lineribbon}}
+implementation. Samples are transformed before computing intervals, following
+ggdist's convention. Weights and alternative point or interval summaries are
+not supported. Only vertical ribbons are computed; use
+\code{ggplot2::coord_flip()} to display the result horizontally.
 }
 \section{Computed variables}{
 
@@ -107,4 +113,15 @@ draws$y <- stats::rnorm(nrow(draws), mean = sin(draws$x), sd = 0.5)
 ggplot2::ggplot(draws, ggplot2::aes(x, y)) +
   stat_fastribbon(.width = c(0.5, 0.8, 0.95), alpha = 0.6) +
   ggplot2::labs(fill = "Interval probability")
+
+# Sample distributions use the fast implementation.
+samples <- data.frame(x = 1:3)
+samples$dist <- distributional::dist_sample(list(1:10, 2:11, 3:12))
+ggplot2::ggplot(samples, ggplot2::aes(x = x, ydist = dist)) +
+  stat_fastribbon()
+
+# Other distribution families use ggdist's default summaries.
+samples$dist <- distributional::dist_normal(mu = 1:3, sigma = 1)
+ggplot2::ggplot(samples, ggplot2::aes(x = x, ydist = dist)) +
+  stat_fastribbon()
 }

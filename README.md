@@ -7,6 +7,7 @@ This package includes a C++ implementation of [ggdist's line-ribbon plot](https:
 One function is included: `stat_fastribbon`
 
 ```R
+library(tidyverse)
 library(fastribbon)
 
 df <- expand_grid(x = seq(0, 100, by = 0.1), y = rep(0, 1000)) |> 
@@ -21,6 +22,27 @@ ggplot(df) +
 
 ```
 <img width="806" height="483" alt="image" src="https://github.com/user-attachments/assets/b6140ad7-ec24-417d-8f7f-becc04979a8e" />
+
+You can also map a [distributional](https://pkg.mitchelloharawild.com/distributional/)
+distribution vector to `ydist`:
+
+```R
+library(tidyverse)
+library(distributional)
+
+samples <- tibble(x = seq(0, 100, by = 0.1)) |>
+  mutate(dist = dist_sample(lapply(x, function(t) {
+    rnorm(5000, mean = cos(t / 10), sd = 1.5 + sin(t / 10))
+  })))
+
+ggplot(samples, aes(x = x, ydist = dist)) +
+  stat_fastribbon() +
+  scale_fill_brewer() +
+  theme_bw()
+```
+
+Univariate numeric `dist_sample()` distributions use the C++ implementation,
+while other distributions use ggdist's default lineribbon summaries.
 
 ### Simple benchmark results
 

@@ -3,7 +3,9 @@ StatFastribbon <- ggplot2::ggproto(
   "StatFastribbon",
   ggplot2::Stat,
 
-  required_aes = c("x", "y"),
+  required_aes = c("x", "y|ydist"),
+  optional_aes = "ydist",
+  dropped_aes = "ydist",
   default_aes = ggplot2::aes(
     fill = ggplot2::after_stat(level),
     order = ggplot2::after_stat(-.width)
@@ -41,6 +43,10 @@ StatFastribbon <- ggplot2::ggproto(
     .width <- .validate_widths(.width)
     if (nrow(data) == 0) {
       return(data.frame())
+    }
+
+    if (!is.null(data$ydist)) {
+      return(.summarise_distributions(data, scales, .width, na.rm))
     }
 
     if (!is.numeric(data$x) || !is.numeric(data$y)) {
@@ -88,17 +94,80 @@ StatFastribbon <- ggplot2::ggproto(
   }
 )
 
+.summarise_distributions <- function(data, scales, .width, na.rm) {
+  if (!distributional::is_distribution(data$ydist)) {
+    stop("`ydist` must be a distributional distribution vector.", call. = FALSE)
+  }
+
+  # Inspect each element: a distribution vector can contain different families.
+  # Transformed, weighted, and multivariate samples use ggdist's implementation.
+  sample <- vapply(unclass(data$ydist), function(d) {
+    inherits(d, "dist_sample") && is.numeric(d$x) && is.null(dim(d$x))
+  }, logical(1))
+  results <- list()
+  if (any(sample)) {
+    rows <- which(sample)
+    draws <- lapply(unclass(data$ydist[rows]), function(d) d$x)
+    # Use a separate synthetic x for each distribution, so distributions at
+    # the same x are never pooled. Preserve the original row's aesthetics.
+    values <- unlist(draws, use.names = FALSE)
+    if (!is.null(scales$y)) {
+      values <- scales$y$trans$transform(values)
+    }
+    out <- StatFastribbon$compute_group(
+      data.frame(x = rep(seq_along(rows), lengths(draws)), y = values),
+      scales, .width = .width, na.rm = na.rm
+    )
+    if (nrow(out)) {
+      source <- data[rows[out$x], , drop = FALSE]
+      out$x <- source$x
+      out$group <- NULL
+      for (name in setdiff(names(source), names(out))) {
+        out[[name]] <- source[[name]]
+      }
+      results[[length(results) + 1L]] <- out
+    }
+  }
+  if (any(!sample)) {
+    # Obtain the ggdist stat through its public layer constructor rather than
+    # depending on unexported ggproto objects or distribution-specific methods.
+    stat <- ggdist::stat_lineribbon()$stat
+    other <- data[!sample, , drop = FALSE]
+    params <- stat$setup_params(other, list(
+      .width = .width, na.rm = na.rm, orientation = "x"
+    ))
+    other <- stat$setup_data(other, params)
+    results[[length(results) + 1L]] <- do.call(
+      stat$compute_panel, c(list(data = other, scales = scales), params)
+    )
+  }
+  results <- lapply(results, function(out) {
+    out$level <- NULL
+    out$ydist <- NULL
+    out
+  })
+  out <- as.data.frame(data.table::rbindlist(results, fill = TRUE))
+  if (nrow(out)) {
+    widths <- sort(unique(out$.width), decreasing = TRUE)
+    out$level <- factor(out$.width, levels = widths,
+                        labels = paste0(100 * widths, "%"))
+  }
+  out
+}
+
 #' Fast median lines with uncertainty ribbons
 #'
 #' Calculate medians and equal-tailed intervals at each x value, optimized for
 #' large numbers of trajectories.
 #'
 #' @details
-#' Requires \code{x} and \code{y} aesthetics. Summaries are calculated within
-#' each group, after scale transformation. Only vertical ribbons of numeric sample values
-#' are supported; analytical distributions, weights, and alternative point or
-#' interval summaries are not supported. Use \code{\link[ggdist]{stat_lineribbon}} for
-#' those features. Use \code{ggplot2::coord_flip()} to display the result horizontally.
+#' Requires \code{x} and either numeric \code{y} or a \code{ydist} aesthetic
+#' containing a \pkg{distributional} distribution vector. Univariate numeric
+#' \code{distributional::dist_sample()} distributions use the C++ implementation;
+#' other distributions use the default \code{\link[ggdist]{stat_lineribbon}}
+#' implementation. Weights and alternative point or interval summaries are
+#' not supported. Only vertical ribbons are computed; use
+#' \code{ggplot2::coord_flip()} to display the result horizontally.
 #'
 #' @inheritParams ggdist::stat_lineribbon
 #' @param geom The geom used to display the summaries. Defaults to
@@ -135,6 +204,13 @@ StatFastribbon <- ggplot2::ggproto(
 #' ggplot2::ggplot(draws, ggplot2::aes(x, y)) +
 #'   stat_fastribbon(.width = c(0.5, 0.8, 0.95), alpha = 0.6) +
 #'   ggplot2::labs(fill = "Interval probability")
+#'
+#' # Sample distributions use the fast implementation.
+#' samples <- data.frame(x = 1:3)
+#' samples$dist <- distributional::dist_sample(list(1:10, 2:11, 3:12))
+#' ggplot2::ggplot(samples, ggplot2::aes(x = x, ydist = dist)) +
+#'   stat_fastribbon()
+#'
 #' @export
 stat_fastribbon <- function(
   mapping = NULL,
