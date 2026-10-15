@@ -4,6 +4,17 @@
 
 This package includes a C++ implementation of [ggdist's line-ribbon plot](https://mjskay.github.io/ggdist/articles/lineribbon.html) optimized for large numbers (thousands) of high-resolution time-series trajectories.
 
+### Installation
+
+Install from GitHub using `remotes`:
+
+```R
+install.packages("remotes") # If needed
+remotes::install_github("idd-unit/fastribbon")
+```
+
+### Usage
+
 One function is included: `stat_fastribbon`
 
 ```R
